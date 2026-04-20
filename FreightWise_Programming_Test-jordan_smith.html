@@ -50,39 +50,106 @@
          */
         class Test {
             constructor() {
-                this.testResults = document.getElementsByClassName('test-results')[0]; // Added the [0] index to properly target the element.
+                // Added the [0] index to properly target the element.
+                this.testResults = document.getElementsByClassName('test-results')[0];
             }
 
             async run() {
                 console.log(new Date().toISOString(), '[Test]', 'Running the test');
 
-                // Initialized theHTML variable before use in the API call.
-                let theHTML = '';
-
                 // Added an array to convert wind direction degrees to cardinal directions.
                 const windDirections = ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'];
 
-                // The included API key was responding as invalid. So, I created my own account and key to use here.
-                await axios.get('https://api.openweathermap.org/data/2.5/weather?q=Brentwood,TN-US&units=imperial&appid=a5ebb7e07236d990b457d030713115d3')
+                // Initialized variable to store user's location.
+                let theUserLocation = null;
+
+                // Get user's location or fallback to Brentwood, TN.
+                const getUserLocation = () => {
+                    return new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(
+                            position => {
+                                const { latitude, longitude } = position.coords;
+                                // Store user's location as an object.
+                                theUserLocation = { latitude, longitude };
+                                // Resolve with the user's location.
+                                resolve({ latitude, longitude });
+                            },
+                            error => {
+                                console.error('--> Geolocation error:\n', error);
+                                // Default back to null if location access is denied or an error occurs.
+                                theUserLocation = null;
+                                // Resolve with null if location access is denied or an error occurs.
+                                resolve(null);
+                            }
+                        );
+                    });
+                };
+
+                // Define API Key.
+                // NOTE: The API key provided in the instructions appears to be invalid. I created a new API key for testing purposes.
+                const apiKey = 'a5ebb7e07236d990b457d030713115d3';
+
+                // Defines apiURLWeather async and gets user's location using Geolocation API. If user denies location access, it defaults to Brentwood, TN.
+                const apiURLWeather = async () => {
+                    const userLocation = await getUserLocation();
+                    if (!userLocation) {
+                        return `https://api.openweathermap.org/data/2.5/weather?q=Brentwood,TN-US&units=imperial&appid=${apiKey}`;
+                    }
+                    return `https://api.openweathermap.org/data/2.5/weather?lat=${userLocation.latitude}&lon=${userLocation.longitude}&units=imperial&appid=${apiKey}`;
+                };
+
+                // Initialized theHTML variable before use in the API call.
+                let theHTML = '';
+
+                // Call the API and handle the response.
+                await axios.get(await apiURLWeather())
                     .then(response => {
-                        const theData = response.data;
-                        // In lieu of using a typical component-based element, I opted to create a quick and simple HTML template for the output here.
+                        // Store weather data for use in the output.
+                        const theWeatherData = response.data;
+                        // Defined map embed code dynamically.
+                        const getMapEmbed = () => {
+                            if (!!theUserLocation) {
+                                return `
+                                <iframe
+                                    width="100%"
+                                    height="450"
+                                    src="https://openweathermap.org/weathermap?basemap=satellite&cities=false&layer=clouds&lat=${theUserLocation.latitude}&lon=${theUserLocation.longitude}&zoom=10">
+                                </iframe>
+                                `;
+                            } else {
+                                return `
+                                <iframe
+                                    width="100%"
+                                    height="450"
+                                    src="https://openweathermap.org/weathermap?basemap=satellite&cities=false&layer=clouds&q=Brentwood,TN-US&zoom=10">
+                                </iframe>
+                                `;
+                            }
+                        };
+
+                        // In lieu of using a typical component-based element, I opted to create a quick and simple HTML "template" for the output here.
                         // Originally, I had a more simple and informational output in a list, but I wanted to change it to a more conversational tone and layout for the sake of the user's experience.
                         // I also rounded the numerical data points to be more user-friendly.
+                        // NOTE: The NewAPI and the SMS services I researched required payment information to use their products. For the purposes of this test, I decided to opt out of these optional features.
                         theHTML = `
                             <div class="results_wrapper">
-                                <h2 class="results_title">Here's the current weather${theData?.name ? ' for ' + theData.name : ''}.</h2>
-                                ${theData?.main?.temp ? `<p class="current_temp">${Math.round(theData.main.temp)}°F.</p>` : ''}
-                                ${theData?.weather[0]?.description ? `<p class="weather_description">${theData.weather[0].description}</p>` : ''}
-                                ${theData.weather[0].icon ? ` <span class="icon_wrapper"><img src="http://openweathermap.org/img/wn/${theData.weather[0].icon}.png" alt="${theData.weather[0].description}" class="icon" /></span>` : ''}
-                                ${theData?.main?.feels_like ? `<p>The current feels like temperature is ${Math.round(theData.main.feels_like)}°F${theData?.main?.humidity ? ` with humidity at ${theData.main.humidity}%.` : ''}</p>`: ''}
-                                ${theData?.wind?.speed ? `<p>Winds at ${Math.round(theData.wind.speed)} mph${theData.wind.deg ? ` from the ${windDirections[Math.floor((theData.wind.deg + 22.5) / 45) % 8]}` : ''}.</p>` : ''}
+                                <h2 class="results_title">Here's the current weather${theWeatherData?.name ? ' for ' + theWeatherData.name : ''}.</h2>
+                                ${theWeatherData?.main?.temp ? `<p class="current_temp">${Math.round(theWeatherData.main.temp)}°F.</p>` : ''}
+                                ${theWeatherData?.weather[0]?.description ? `<p class="weather_description">${theWeatherData.weather[0].description}</p>` : ''}
+                                ${theWeatherData.weather[0].icon ? ` <span class="icon_wrapper"><img src="http://openweathermap.org/img/wn/${theWeatherData.weather[0].icon}.png" alt="${theWeatherData.weather[0].description}" class="icon" /></span>` : ''}
+                                ${theWeatherData?.main?.feels_like ? `<p>The current feels like temperature is ${Math.round(theWeatherData.main.feels_like)}°F${theWeatherData?.main?.humidity ? ` with humidity at ${theWeatherData.main.humidity}%.` : ''}</p>`: ''}
+                                ${theWeatherData?.wind?.speed ? `<p>Winds at ${Math.round(theWeatherData.wind.speed)} mph${theWeatherData.wind.deg ? ` from the ${windDirections[Math.floor((theWeatherData.wind.deg + 22.5) / 45) % 8]}` : ''}.</p>` : ''}
+
+                                ${getMapEmbed() && // Get map embed if it's available.
+                                `<div class="map_wrapper">
+                                    ${getMapEmbed()}
+                                </div>`}
                             </div>
                         `;
                         this.setResults(theHTML);
                     })
                     .catch(error => {
-                        // Used same HTML "template" as above. Gave the user a more friendly message upon error and sent the technical data to the console for debugging.
+                        // Used same HTML "template" as above. Gave the user a more friendly and humorous message upon error and sent the technical data to the console for debugging.
                         console.error('--> API call failed:\n', error);
                         theHTML = `
                             <div class="results_wrapper">
@@ -95,11 +162,13 @@
             }
 
             setError(message) {
-                this.testResults.innerHTML = message || ''; // Reconfigured to allow for HTML formatting in the error message.
+                // Reconfigured to allow for HTML formatting in the error message.
+                this.testResults.innerHTML = message || '';
             }
 
             setResults(results) {
-                this.testResults.innerHTML = results || ''; // Reconfigured to allow for HTML formatting in the error message.
+                // Reconfigured to allow for HTML formatting in the error message.
+                this.testResults.innerHTML = results || '';
             }
         }
     </script>
@@ -138,7 +207,8 @@
             line-height: 1.5;
             margin: 0 0 .5em;
         }
-        /* Specific element styles */
+
+        /* Specific element styles ===== */
         .test-results .current_temp {
             font-size: 1.5rem;
             line-height: 1em;
@@ -201,7 +271,7 @@
             let testButton = document.createElement('button');
 
             testButton.type = 'button';
-            testButton.innerText = 'Get the Weather for Brentwood, TN'; // Renamed city text to match API call.
+            testButton.innerText = 'Get the Weather'; // Updated button text to be more descriptive of its function.
             testButton.onclick = () => test.run();
 
             context.appendChild(testButton);
